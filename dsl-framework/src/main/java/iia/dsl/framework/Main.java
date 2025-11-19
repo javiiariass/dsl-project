@@ -7,6 +7,7 @@ import java.util.logging.Logger;
 import org.w3c.dom.Document;
 
 import iia.dsl.framework.connectors.ConsoleConnector;
+import iia.dsl.framework.connectors.FileConnector;
 import iia.dsl.framework.connectors.MockConnector;
 import iia.dsl.framework.core.Flow;
 import iia.dsl.framework.core.Slot;
@@ -103,7 +104,8 @@ public class Main {
                                     """;
 
     public static void main(String[] args) {
-        demoFlow();
+        //demoFlow();
+        demoFlowWithFiles();
     }
 
     private static void demoFlow() {
@@ -205,6 +207,117 @@ public class Main {
             flow.addElement(translatorCalientes);
             flow.addElement(mockConnectorFrias);
             flow.addElement(mockConnectorCalientes);
+            flow.addElement(correlatorFrias);
+            flow.addElement(correlatorCalientes);
+            flow.addElement(contextContentEnricherFrias);
+            flow.addElement(contextContentEnricherCalientes);
+            flow.addElement(merger);
+            flow.addElement(aggregator);
+            flow.addElement(consoleConnectorOutput);
+
+            // === EJECUCIÓN ===
+            flow.execute();
+        } catch (Exception ex) {
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private static void demoFlowWithFiles() {
+        try {
+            // === CONFIGURACIÓN INICIAL ===
+
+            // === PASO 1: Configurar Slots ===
+            var inputSlotSystem = new Slot();
+            
+            var outputSlotSplitter = new Slot();
+            
+            var outputSlotCorrelationIdSetter = new Slot();
+
+            var outputSlotDistributorToFrias = new Slot();
+            var outputSlotDistributorToCalientes = new Slot();
+
+            var outputSlot1Replicator1 = new Slot();
+            var outputSlot2Replicator1 = new Slot();
+            var outputSlot1Replicator2 = new Slot();
+            var outputSlot2Replicator2 = new Slot();
+
+            var inputSlotRequestPortFrias = new Slot();
+            var inputSlotRequestPortCalientes = new Slot();
+            var outputSlotRequestPortFrias = new Slot();
+            var outputSlotRequestPortCalientes = new Slot();
+
+            var outputSlot1Correlator1 = new Slot();
+            var outputSlot2Correlator1 = new Slot();
+            var outputSlot1Correlator2 = new Slot();
+            var outputSlot2Correlator2 = new Slot();
+
+            var outputSlotContextEnricher1 = new Slot();
+            var outputSlotContextEnricher2 = new Slot();
+
+            var outputSlotMerger = new Slot();
+
+            var outputSlotSystem = new Slot();
+
+            // === PASO 2: Configurar Connectors ===
+            var fileConnectorInput = new FileConnector("src/xml/input_order.xml");
+            var fileConnectorFrias = new FileConnector("src/xml/cold_drink.xml");
+            var fileConnectorCalientes = new FileConnector("src/xml/hot_drink.xml");
+            var consoleConnectorOutput = new ConsoleConnector();
+
+            // === PASO 3: Configurar Ports y asociarlos a Connectors ===
+            var inputPort = new InputPort(inputSlotSystem);
+            fileConnectorInput.setPort(inputPort);
+            
+            var requestPortFrias = new RequestPort("requestPortFrias", inputSlotRequestPortFrias, outputSlotRequestPortFrias, ORDER_CONTEXT_XSLT);
+            fileConnectorFrias.setPort(requestPortFrias);
+            
+            var requestPortCalientes = new RequestPort("requestPortCalientes", inputSlotRequestPortCalientes, outputSlotRequestPortCalientes, ORDER_CONTEXT_XSLT);
+            fileConnectorCalientes.setPort(requestPortCalientes);
+            
+            var outputPort = new OutputPort("outputPort", outputSlotSystem);
+            consoleConnectorOutput.setPort(outputPort);
+
+            // === PASO 5: Configurar Tasks Factories ===
+            var modifierFactory = new ModifierFactory();
+            var routerFactory = new RouterFactory();
+            var transformerFactory = new iia.dsl.framework.tasks.transformers.TransformerFactory();
+
+            // === PASO 6: Configurar Tasks ===
+            var splitter = transformerFactory.createSplitterTask("splitter", inputSlotSystem, outputSlotSplitter, "/cafe_order/drinks/drink");
+
+            var correlatorIdSetter = modifierFactory.createCorrelationIdSetterTask("correlationIdSetter", outputSlotSplitter, outputSlotCorrelationIdSetter);
+
+            var distributor = routerFactory.createDistributorTask("distributor", outputSlotCorrelationIdSetter, List.of(outputSlotDistributorToFrias, outputSlotDistributorToCalientes), List.of("/drink/type='cold'", "/drink/type='hot'"));
+
+            var replicatorFrias = routerFactory.createReplicatorTask("replicatorFrias", outputSlotDistributorToFrias, List.of(outputSlot1Replicator1, outputSlot2Replicator1));
+            var replicatorCalientes = routerFactory.createReplicatorTask("replicatorCalientes", outputSlotDistributorToCalientes, List.of(outputSlot1Replicator2, outputSlot2Replicator2));
+
+            var translatorFrias = transformerFactory.createTranslatorTask("translatorFrias", outputSlot2Replicator1, inputSlotRequestPortFrias, ORDER_XSLT);
+            var translatorCalientes = transformerFactory.createTranslatorTask("translatorCalientes", outputSlot2Replicator2, inputSlotRequestPortCalientes, ORDER_XSLT);
+
+            var correlatorFrias = routerFactory.createCorrelatorTask("correlatorFrias", List.of(outputSlot1Replicator1, outputSlotRequestPortFrias), List.of(outputSlot1Correlator1, outputSlot2Correlator1));
+            var correlatorCalientes = routerFactory.createCorrelatorTask("correlatorCalientes", List.of(outputSlot1Replicator2, outputSlotRequestPortCalientes), List.of(outputSlot1Correlator2, outputSlot2Correlator2));
+
+            var contextContentEnricherFrias = modifierFactory.createContextEnricherTask("contextEnricherFrias", outputSlot1Correlator1, outputSlot2Correlator1, outputSlotContextEnricher1);
+            var contextContentEnricherCalientes = modifierFactory.createContextEnricherTask("contextEnricherCalientes", outputSlot1Correlator2, outputSlot2Correlator2, outputSlotContextEnricher2);
+
+            var merger = routerFactory.createMergerTask("merger", List.of(outputSlotContextEnricher1, outputSlotContextEnricher2), outputSlotMerger);
+
+            var aggregator = transformerFactory.createAggregatorTask("aggregator", outputSlotMerger, outputSlotSystem, "/cafe_order/drinks");
+
+            // === PASO 7: Configurar Flow ===
+            Flow flow = new Flow();
+
+            flow.addElement(fileConnectorInput);
+            flow.addElement(splitter);
+            flow.addElement(correlatorIdSetter);
+            flow.addElement(distributor);
+            flow.addElement(replicatorFrias);
+            flow.addElement(replicatorCalientes);
+            flow.addElement(translatorFrias);
+            flow.addElement(translatorCalientes);
+            flow.addElement(fileConnectorFrias);
+            flow.addElement(fileConnectorCalientes);
             flow.addElement(correlatorFrias);
             flow.addElement(correlatorCalientes);
             flow.addElement(contextContentEnricherFrias);
