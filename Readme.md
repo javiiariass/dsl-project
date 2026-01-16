@@ -45,25 +45,22 @@ Las tareas son las unidades de procesamiento.
 ## Ejemplo de Uso
 
 ```java
-// 1. Crear el entorno de ejecución
-ExecutionEnvironment env = ExecutionEnvironment.getInstance();
-
-// 2. Definir Slots (Canales)
+// 1. Definir Slots (Canales)
 Slot inputSlot = new Slot("input");
 Slot processSlot = new Slot("process");
 Slot outputSlot = new Slot("output");
 
-// 3. Configurar Conectores y Puertos
+// 2. Configurar Conectores y Puertos
 InputPort iPort = new InputPort(inputSlot);
 FileConnector reader = new FileConnector(iPort, "C:/in/data.xml");
 
 OutputPort oPort = new OutputPort("out-port", outputSlot);
 ConsoleConnector writer = new ConsoleConnector(oPort);
 
-// 4. Configurar Tarea (Ej. Transformación XSLT)
+// 3. Configurar Tarea (Ej. Transformación XSLT)
 Translator translator = new Translator("my-translator", inputSlot, outputSlot, "/templates/convert.xslt");
 
-// 5. Construir y Ejecutar el Flujo
+// 4. Construir y Ejecutar el Flujo
 Flow flow = new Flow.Builder("MainFlow")
     .concurrent(new FifoPolicy()) // Llamas a concurrent pasándole una política si quieres que sea concurrente
     .build();
