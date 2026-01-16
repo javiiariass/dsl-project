@@ -5,7 +5,7 @@ import sys
 def analyze_git_time():
     try:
         # Obtener el log de git: Autor | Fecha
-        cmd = ['git', 'log', '--pretty=format:%an|%ad', '--date=iso']
+        cmd = ['git', 'log','--all', '--pretty=format:%an|%ad', '--date=iso']
         result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
         
         if result.returncode != 0:
@@ -37,7 +37,7 @@ def analyze_git_time():
         print("-" * 60)
 
         # Configuración de la heurística
-        SESSION_THRESHOLD = timedelta(hours=2) # Si pasa mas de esto, es nueva sesión
+        SESSION_THRESHOLD = timedelta(hours=3) # Si pasa mas de esto, es nueva sesión
         BASE_COMMIT_TIME = timedelta(minutes=30) # Tiempo base por commit aislado o inicio de sesión
 
         for author, dates in commits_by_author.items():
