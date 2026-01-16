@@ -79,10 +79,13 @@ flow.execute();
 
 ## Compilación
 
-1. Ubicarse en la carpeta del proyecto:
+### Ubicarse en la carpeta del proyecto:
+
 ```bash
 cd dsl-framework
 ```
+
+### Compilar proyecto
 
 ```bash
 mvn clean install
